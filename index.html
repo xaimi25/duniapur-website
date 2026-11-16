@@ -1521,6 +1521,11 @@ function sendOrderToForm(order){
   params.set(ORDER_FORM_ENTRIES.delivery, order.fee===0 ? "FREE" : fmt(order.fee));
   params.set(ORDER_FORM_ENTRIES.total, fmt(order.total));
   params.set(ORDER_FORM_ENTRIES.payment, "Cash on Delivery");
+  params.set("fvv", "1");
+  params.set("fbzx", "-2795117913165826163");
+  params.set("pageHistory", "0");
+  params.set("draftResponse", "[]");
+  params.set("submit", "Submit");
   fetch("https://docs.google.com/forms/d/e/" + ORDER_FORM_ID + "/formResponse", {
     method:"POST", mode:"no-cors", body: params
   }).catch(()=>{ /* form submission failed — order is still saved on the website */ });
