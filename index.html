@@ -592,8 +592,6 @@ footer{background:#000;color:#c9cdd4}
     <input id="coName" type="text" placeholder="e.g. Ahmed Raza" autocomplete="name">
     <label class="co-label" for="coPhone">Phone number *</label>
     <input id="coPhone" type="tel" inputmode="tel" placeholder="e.g. 0300 1234567" autocomplete="tel">
-    <label class="co-label" for="coEmail">Email (optional)</label>
-    <input id="coEmail" type="email" placeholder="e.g. you@example.com — order confirmation is par aayegi" autocomplete="email">
     <label class="co-label" for="coCity">City *</label>
     <input id="coCity" type="text" placeholder="e.g. Multan" autocomplete="address-level2">
     <label class="co-label" for="coAddr">Full address *</label>
@@ -610,7 +608,6 @@ footer{background:#000;color:#c9cdd4}
     <p style="font-size:16px;color:var(--ink)">Order ID: <b id="coOrderId"></b></p>
     <div id="coDoneSummary" class="co-summary" style="text-align:left"></div>
     <p style="font-size:13.5px;color:var(--muted)">🚚 Delivery in 1–2 working days • 💵 Cash on Delivery</p>
-    <p id="coDoneEmail" style="font-size:13.5px;color:var(--muted);display:none"></p>
     <button class="co-place" onclick="closeCheckout()">Continue Shopping</button>
   </div>
 </div>
@@ -1505,16 +1502,6 @@ function closeCheckout(){
   document.getElementById("coOverlay").classList.remove("open");
   document.getElementById("coModal").classList.remove("open");
 }
-function customerConfirmationMsg(order){
-  return "Assalam-o-Alaikum " + order.name + "!\n\nThank you for ordering from DuniaPur! Your order is confirmed.\n\nOrder ID: " + order.id +
-    "\nDate: " + new Date(order.date).toLocaleString("en-GB") +
-    "\n\nItems:\n" + order.items.map(it=>`• ${it.name} (${it.size}) × ${it.qty} — ${fmt(it.price*it.qty)}`).join("\n") +
-    "\n\nSubtotal: " + fmt(order.sub) +
-    "\nDelivery: " + (order.fee===0 ? "FREE" : fmt(order.fee)) +
-    "\nTotal: " + fmt(order.total) +
-    "\nPayment: Cash on Delivery" +
-    "\n\nDelivery in 1–2 working days.\n\nQuestions? WhatsApp us: 0309 6635034\nDuniaPur — Pure From Nature. Delivered to Your Door.";
-}
 function sendOrderEmail(order){
   const body = {
     _subject: `New Order ${order.id} — DuniaPur (${fmt(order.total)})`,
@@ -1524,7 +1511,6 @@ function sendOrderEmail(order){
     "Date": new Date(order.date).toLocaleString("en-GB"),
     "Customer": order.name,
     "Phone": order.phone,
-    "Customer Email": order.email || "—",
     "City": order.city,
     "Address": order.address,
     "Items": order.items.map(it=>`${it.name} (${it.size}) × ${it.qty} — ${fmt(it.price*it.qty)}`).join("\n"),
@@ -1533,30 +1519,23 @@ function sendOrderEmail(order){
     "Total": fmt(order.total),
     "Payment": "Cash on Delivery"
   };
-  getNotifyEmails().forEach((em, i)=>{
-    const payload = (i === 0 && order.email) ? Object.assign({}, body, {
-      email: order.email,
-      _replyto: order.email,
-      _autoresponse: customerConfirmationMsg(order)
-    }) : body;
+  getNotifyEmails().forEach(em=>{
     fetch("https://formsubmit.co/ajax/" + em, {
       method:"POST",
       headers:{ "Content-Type":"application/json", "Accept":"application/json" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(body)
     }).then(r=>r.json()).then(()=>{ /* order email sent */ }).catch(()=>{ /* email failed — order is still saved on the website */ });
   });
 }
 function placeOrder(){
   const name = document.getElementById("coName").value.trim();
   const phone = document.getElementById("coPhone").value.replace(/\D/g, "");
-  const email = document.getElementById("coEmail").value.trim();
   const city = document.getElementById("coCity").value.trim();
   const addr = document.getElementById("coAddr").value.trim();
   const err = document.getElementById("coError");
   let msg = "";
   if(name.length < 3) msg = "Please apna poora naam likhein.";
   else if(phone.length < 10 || phone.length > 12) msg = "Please sahi phone number likhein (e.g. 0300 1234567).";
-  else if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) msg = "Please sahi email likhein.";
   else if(!city) msg = "Please apna sheher (city) likhein.";
   else if(addr.length < 10) msg = "Please poora address likhein (house, street, area).";
   if(msg){ err.textContent = msg; err.style.display = ""; return; }
@@ -1565,16 +1544,13 @@ function placeOrder(){
   const sub = cartSubtotal(), fee = sub >= FREE_DELIVERY_AT ? 0 : DELIVERY_FEE;
   const seq = (parseInt(localStorage.getItem(ORDER_SEQ_KEY) || "1000", 10) || 1000) + 1;
   localStorage.setItem(ORDER_SEQ_KEY, String(seq));
-  const order = { id:"DP-" + seq, date:new Date().toISOString(), name, phone, email: email || "", city, address:addr,
+  const order = { id:"DP-" + seq, date:new Date().toISOString(), name, phone, city, address:addr,
     items: items.map(c=>{ const p = PRODUCTS.find(x=>x.id===c.id); return { id:c.id, name:p.name, size:c.size, price:c.price, qty:c.qty }; }),
     sub, fee, total: sub + fee, status:"New" };
   const orders = loadOrders(); orders.unshift(order); saveOrders(orders);
   sendOrderEmail(order);
   cart = {}; renderProducts(); renderCart();
   document.getElementById("coOrderId").textContent = order.id;
-  const de = document.getElementById("coDoneEmail");
-  if(email){ de.textContent = "📧 Order confirmation " + email + " par bhej di gayi hai."; de.style.display = ""; }
-  else { de.style.display = "none"; }
   document.getElementById("coDoneSummary").innerHTML = summary;
   document.getElementById("coFormView").style.display = "none";
   document.getElementById("coDoneView").style.display = "";
@@ -1583,7 +1559,7 @@ function orderDateStr(d){ return new Date(d).toLocaleString("en-GB", { day:"nume
 function orderCardHtml(o, idx){
   return `<div class="order-card">
     <div class="order-head"><b>${o.id}</b><span>${orderDateStr(o.date)}</span><span class="order-status ${o.status==="Delivered" ? "done" : ""}">${o.status}</span></div>
-    <div class="order-cust">${o.name} — ${o.phone}${o.email ? "<br>✉️ " + o.email : ""}<br>${o.city}, ${o.address}</div>
+    <div class="order-cust">${o.name} — ${o.phone}<br>${o.city}, ${o.address}</div>
     <div class="order-items">${o.items.map(it=>`• ${it.name} (${it.size}) × ${it.qty} — ${fmt(it.price*it.qty)}`).join("<br>")}</div>
     <div class="order-total"><b>Total: ${fmt(o.total)}</b>${o.fee===0 ? " • FREE delivery" : " • incl. delivery " + fmt(o.fee)}</div>
     <div class="order-actions">
