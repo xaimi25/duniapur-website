@@ -1376,6 +1376,30 @@ function closeCheckout(){
   document.getElementById("coOverlay").classList.remove("open");
   document.getElementById("coModal").classList.remove("open");
 }
+const ORDER_NOTIFY_EMAIL = "zaeemhassan649@gmail.com";
+function sendOrderEmail(order){
+  const body = {
+    _subject: `New Order ${order.id} — DuniaPur (${fmt(order.total)})`,
+    _template: "table",
+    _captcha: "false",
+    "Order ID": order.id,
+    "Date": new Date(order.date).toLocaleString("en-GB"),
+    "Customer": order.name,
+    "Phone": order.phone,
+    "City": order.city,
+    "Address": order.address,
+    "Items": order.items.map(it=>`${it.name} (${it.size}) × ${it.qty} — ${fmt(it.price*it.qty)}`).join("\n"),
+    "Subtotal": fmt(order.sub),
+    "Delivery": order.fee===0 ? "FREE" : fmt(order.fee),
+    "Total": fmt(order.total),
+    "Payment": "Cash on Delivery"
+  };
+  fetch("https://formsubmit.co/ajax/" + ORDER_NOTIFY_EMAIL, {
+    method:"POST",
+    headers:{ "Content-Type":"application/json", "Accept":"application/json" },
+    body: JSON.stringify(body)
+  }).then(r=>r.json()).then(()=>{ /* order email sent */ }).catch(()=>{ /* email failed — order is still saved on the website */ });
+}
 function placeOrder(){
   const name = document.getElementById("coName").value.trim();
   const phone = document.getElementById("coPhone").value.replace(/\D/g, "");
@@ -1397,6 +1421,7 @@ function placeOrder(){
     items: items.map(c=>{ const p = PRODUCTS.find(x=>x.id===c.id); return { id:c.id, name:p.name, size:c.size, price:c.price, qty:c.qty }; }),
     sub, fee, total: sub + fee, status:"New" };
   const orders = loadOrders(); orders.unshift(order); saveOrders(orders);
+  sendOrderEmail(order);
   cart = {}; renderProducts(); renderCart();
   document.getElementById("coOrderId").textContent = order.id;
   document.getElementById("coDoneSummary").innerHTML = summary;
@@ -1526,6 +1551,7 @@ renderCart();
     <div id="dlReminder" style="display:none;background:#fff8e1;border:1.5px solid #f0c040;border-radius:10px;padding:12px;font-size:13.5px;margin-bottom:14px;color:var(--ink)">✅ Changes save ho gayi hain — ab <b>Download Updated Website</b> dabayein taake nayi file mein save hon.</div>
     <div id="ordersDash" style="margin-bottom:18px;border:1.5px solid var(--line);border-radius:12px;padding:14px">
       <h4 style="font-size:16px;font-weight:900;margin-bottom:10px;color:var(--ink)">📦 Orders Dashboard</h4>
+      <p style="font-size:12px;color:var(--muted);margin:-4px 0 10px">📧 Har naye order ki email <b>zaeemhassan649@gmail.com</b> par jayegi.</p>
       <div class="od-stats">
         <div class="od-stat"><b id="statOrders">0</b><span>Total Orders</span></div>
         <div class="od-stat"><b id="statNew">0</b><span>New</span></div>
