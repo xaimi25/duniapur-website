@@ -95,9 +95,6 @@ header.scrolled{box-shadow:0 6px 24px rgba(20,30,40,.10)}
 .btn-white:hover{transform:translateY(-2px);box-shadow:0 10px 22px rgba(0,0,0,.3)}
 .btn-outline{border:2px solid rgba(255,255,255,.85);color:#fff}
 .btn-outline:hover{background:rgba(255,255,255,.14)}
-.slider-arrow{position:absolute;top:50%;transform:translateY(-50%);z-index:3;width:44px;height:44px;border-radius:50%;border:2px solid rgba(255,255,255,.85);color:#fff;font-size:20px;display:grid;place-items:center;transition:.25s;background:rgba(0,0,0,.15)}
-.slider-arrow:hover{background:#fff;color:var(--ink)}
-.slider-arrow.prev{left:16px}.slider-arrow.next{right:16px}
 .slider-dots{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);z-index:3;display:flex;gap:8px}
 .slider-dots button{width:9px;height:9px;border-radius:99px;background:rgba(255,255,255,.55);transition:.3s}
 .slider-dots button.active{width:26px;background:#fff}
@@ -363,8 +360,6 @@ footer{background:#000;color:#c9cdd4}
         </div>
       </div>
     </div>
-    <button class="slider-arrow prev" onclick="moveSlide(-1)" aria-label="Previous slide">‹</button>
-    <button class="slider-arrow next" onclick="moveSlide(1)" aria-label="Next slide">›</button>
     <div class="slider-dots" id="sliderDots"></div>
     <div class="slider-count" id="sliderCount">1 / 3</div>
     <div class="slider-seal">
