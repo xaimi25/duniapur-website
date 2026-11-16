@@ -644,7 +644,7 @@ footer{background:#000;color:#c9cdd4}
       <button class="od-filter" data-f="Delivered" onclick="setAllOrderFilter('Delivered')">Delivered</button>
     </div>
     <div id="allOrdersList"></div>
-    <p class="ao-note">Orders usi browser mein save hote hain jahan place hue hon — aur har naye order ki email in par bhi jati hai: <b id="aoNotifyEmailText">zaeemhassan649@gmail.com</b>.</p>
+    <p class="ao-note">Orders usi browser mein save hote hain jahan place hue hon — aur har naya order Google Form mein bhi save hota hai: <a href="https://docs.google.com/forms/d/e/1FAIpQLSeCOr8NgyOzumpGiXv_mTP8nY4dZKv8P13gGg48InzDn27IXQ/edit#responses" target="_blank" rel="noopener" style="color:var(--green);font-weight:800">View responses</a>.</p>
   </div>
 </div>
 
@@ -681,7 +681,7 @@ footer{background:#000;color:#c9cdd4}
         <input id="pfName" type="text" placeholder="e.g. DuniaPur Admin">
       </div>
       <div class="pf-field">
-        <label for="pfEmail">Email — order notifications go here</label>
+        <label for="pfEmail">Email</label>
         <input id="pfEmail" type="email" placeholder="e.g. you@example.com" autocomplete="email">
       </div>
       <div class="pf-field">
@@ -689,7 +689,7 @@ footer{background:#000;color:#c9cdd4}
         <input id="pfPhone" type="tel" placeholder="e.g. 0309 6635034" autocomplete="tel">
       </div>
       <button class="co-place" onclick="saveProfileForm()">💾 Save Profile</button>
-      <p class="pf-note">📧 Har naye order ki email sab admins ko jayegi (neeche list mein jo emails hain). Naya email add karne par us par pehli dafa ek activation email aayegi — us ka link click karna hoga, us ke baad orders ki emails aayengi.</p>
+      <p class="pf-note">📋 Har naya order Google Form mein save hota hai. Form ke Responses tab mein "Get email notifications" on karein to har naye order ki email bhi aayegi.</p>
     </div>
     <div class="pf-card" style="margin-top:14px">
       <h4 style="font-size:16px;font-weight:900;margin-bottom:6px;text-align:left">👥 Admins <span id="adminsCount" style="color:var(--muted);font-size:13px"></span></h4>
@@ -1478,7 +1478,6 @@ function saveAdmins(){
   markChanged();
 }
 function currentAdmin(){ return ADMINS.find(a=>a.id===CURRENT_ADMIN_ID) || null; }
-function getNotifyEmails(){ return ADMINS.map(a=>a.email).filter(e=>e && e.indexOf("@") > 0); }
 let orderFilter = "All";
 function loadOrders(){ try{ return JSON.parse(localStorage.getItem(ORDERS_KEY)) || []; }catch(e){ return []; } }
 function saveOrders(o){ localStorage.setItem(ORDERS_KEY, JSON.stringify(o)); }
@@ -1502,30 +1501,29 @@ function closeCheckout(){
   document.getElementById("coOverlay").classList.remove("open");
   document.getElementById("coModal").classList.remove("open");
 }
-function sendOrderEmail(order){
-  const body = {
-    _subject: `New Order ${order.id} — DuniaPur (${fmt(order.total)})`,
-    _template: "table",
-    _captcha: "false",
-    "Order ID": order.id,
-    "Date": new Date(order.date).toLocaleString("en-GB"),
-    "Customer": order.name,
-    "Phone": order.phone,
-    "City": order.city,
-    "Address": order.address,
-    "Items": order.items.map(it=>`${it.name} (${it.size}) × ${it.qty} — ${fmt(it.price*it.qty)}`).join("\n"),
-    "Subtotal": fmt(order.sub),
-    "Delivery": order.fee===0 ? "FREE" : fmt(order.fee),
-    "Total": fmt(order.total),
-    "Payment": "Cash on Delivery"
-  };
-  getNotifyEmails().forEach(em=>{
-    fetch("https://formsubmit.co/ajax/" + em, {
-      method:"POST",
-      headers:{ "Content-Type":"application/json", "Accept":"application/json" },
-      body: JSON.stringify(body)
-    }).then(r=>r.json()).then(()=>{ /* order email sent */ }).catch(()=>{ /* email failed — order is still saved on the website */ });
-  });
+const ORDER_FORM_ID = "1FAIpQLSeCOr8NgyOzumpGiXv_mTP8nY4dZKv8P13gGg48InzDn27IXQ";
+const ORDER_FORM_ENTRIES = {
+  orderId:"entry.066dad1f", date:"entry.03b13958", customer:"entry.2ae77508",
+  phone:"entry.4b87cfa1", city:"entry.111b062f", address:"entry.43607d4a",
+  items:"entry.4d796b1f", subtotal:"entry.6f87b8ae", delivery:"entry.1f5a82c7",
+  total:"entry.0bdf0e19", payment:"entry.67137d36"
+};
+function sendOrderToForm(order){
+  const params = new URLSearchParams();
+  params.set(ORDER_FORM_ENTRIES.orderId, order.id);
+  params.set(ORDER_FORM_ENTRIES.date, new Date(order.date).toLocaleString("en-GB"));
+  params.set(ORDER_FORM_ENTRIES.customer, order.name);
+  params.set(ORDER_FORM_ENTRIES.phone, order.phone);
+  params.set(ORDER_FORM_ENTRIES.city, order.city);
+  params.set(ORDER_FORM_ENTRIES.address, order.address);
+  params.set(ORDER_FORM_ENTRIES.items, order.items.map(it=>`${it.name} (${it.size}) × ${it.qty} — ${fmt(it.price*it.qty)}`).join("\n"));
+  params.set(ORDER_FORM_ENTRIES.subtotal, fmt(order.sub));
+  params.set(ORDER_FORM_ENTRIES.delivery, order.fee===0 ? "FREE" : fmt(order.fee));
+  params.set(ORDER_FORM_ENTRIES.total, fmt(order.total));
+  params.set(ORDER_FORM_ENTRIES.payment, "Cash on Delivery");
+  fetch("https://docs.google.com/forms/d/e/" + ORDER_FORM_ID + "/formResponse", {
+    method:"POST", mode:"no-cors", body: params
+  }).catch(()=>{ /* form submission failed — order is still saved on the website */ });
 }
 function placeOrder(){
   const name = document.getElementById("coName").value.trim();
@@ -1548,7 +1546,7 @@ function placeOrder(){
     items: items.map(c=>{ const p = PRODUCTS.find(x=>x.id===c.id); return { id:c.id, name:p.name, size:c.size, price:c.price, qty:c.qty }; }),
     sub, fee, total: sub + fee, status:"New" };
   const orders = loadOrders(); orders.unshift(order); saveOrders(orders);
-  sendOrderEmail(order);
+  sendOrderToForm(order);
   cart = {}; renderProducts(); renderCart();
   document.getElementById("coOrderId").textContent = order.id;
   document.getElementById("coDoneSummary").innerHTML = summary;
@@ -1578,7 +1576,6 @@ function renderOrdersList(){
   document.getElementById("statDelivered").textContent = orders.filter(o=>o.status==="Delivered").length;
   document.getElementById("statRevenue").textContent = fmt(orders.reduce((a,o)=>a+o.total,0));
   document.querySelectorAll("#ordersDash .od-filter").forEach(b=>b.classList.toggle("active", b.dataset.f===orderFilter));
-  renderNotifyNote();
   if(!list.length){ box.innerHTML = `<p style="color:var(--muted);font-size:13.5px;margin:6px 0">${orders.length ? "Is filter mein koi order nahi." : "Abhi tak koi order nahi aaya. Website par order aate hi yahan dikhega."}</p>`; return; }
   box.innerHTML = list.map(o=>orderCardHtml(o, orders.indexOf(o))).join("");
 }
@@ -1608,7 +1605,6 @@ function renderAllOrders(){
   document.getElementById("aStatDelivered").textContent = orders.filter(o=>o.status==="Delivered").length;
   document.getElementById("aStatRevenue").textContent = fmt(orders.reduce((a,o)=>a+o.total,0));
   document.querySelectorAll("#allOrdersPage .od-filter").forEach(b=>b.classList.toggle("active", b.dataset.f===allOrderFilter));
-  renderNotifyNote();
   const ca = currentAdmin();
   const apn = document.getElementById("aoProfileName"); if(apn) apn.textContent = ca ? ca.name : "Admin";
   if(!list.length){ box.innerHTML = `<p style="color:var(--muted);font-size:14px;margin:8px 0">${orders.length ? "Is search/filter mein koi order nahi." : "Abhi tak koi order nahi aaya. Website par order aate hi yahan dikhega."}</p>`; return; }
@@ -1668,7 +1664,6 @@ function addAdmin(){
   saveAdmins();
   editingAdminId = a.id;
   renderProfile();
-  renderNotifyNote();
   document.getElementById("pfName").focus();
   showToast("👤 Naya admin — naam, email aur phone likhein, phir Save dabayein");
 }
@@ -1680,7 +1675,6 @@ function deleteAdmin(id){
   saveAdmins();
   if(editingAdminId === id) editingAdminId = CURRENT_ADMIN_ID;
   renderProfile();
-  renderNotifyNote();
   showToast("🗑️ Admin deleted");
 }
 function saveProfileForm(){
@@ -1694,13 +1688,7 @@ function saveProfileForm(){
   a.name = name; a.email = email; a.phone = phone;
   saveAdmins();
   renderProfile();
-  renderNotifyNote();
   showToast("✅ Profile save ho gaya");
-}
-function renderNotifyNote(){
-  const em = getNotifyEmails().join(", ");
-  const a = document.getElementById("notifyEmailText"); if(a) a.textContent = em;
-  const b = document.getElementById("aoNotifyEmailText"); if(b) b.textContent = em;
 }
 function setOrderFilter(f){ orderFilter = f; renderOrdersList(); renderAllOrders(); }
 function markOrderDelivered(i){ const o = loadOrders(); if(o[i]){ o[i].status = "Delivered"; saveOrders(o); renderOrdersList(); renderAllOrders(); } }
@@ -1799,7 +1787,7 @@ renderCart();
     <div id="dlReminder" style="display:none;background:#fff8e1;border:1.5px solid #f0c040;border-radius:10px;padding:12px;font-size:13.5px;margin-bottom:14px;color:var(--ink)">✅ Changes save ho gayi hain — ab <b>Download Updated Website</b> dabayein taake nayi file mein save hon.</div>
     <div id="ordersDash" style="margin-bottom:18px;border:1.5px solid var(--line);border-radius:12px;padding:14px">
       <h4 style="font-size:16px;font-weight:900;margin-bottom:10px;color:var(--ink)">📦 Orders Dashboard</h4>
-      <p style="font-size:12px;color:var(--muted);margin:-4px 0 10px">📧 Order emails: <b id="notifyEmailText">zaeemhassan649@gmail.com</b></p>
+      <p style="font-size:12px;color:var(--muted);margin:-4px 0 10px">📋 Har naya order Google Form mein save hota hai — <a href="https://docs.google.com/forms/d/e/1FAIpQLSeCOr8NgyOzumpGiXv_mTP8nY4dZKv8P13gGg48InzDn27IXQ/edit#responses" target="_blank" rel="noopener" style="color:var(--green);font-weight:800">View responses</a></p>
       <button class="btn btn-dark" style="width:100%;margin-bottom:12px" onclick="openAllOrders()">📋 View All Orders</button>
       <button class="btn" style="width:100%;margin-bottom:12px;border:2px solid var(--line);color:var(--ink)" onclick="openProfile()">👤 Admin Profile</button>
       <div class="od-stats">
