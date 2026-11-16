@@ -644,7 +644,7 @@ footer{background:#000;color:#c9cdd4}
       <button class="od-filter" data-f="Delivered" onclick="setAllOrderFilter('Delivered')">Delivered</button>
     </div>
     <div id="allOrdersList"></div>
-    <p class="ao-note">Orders usi browser mein save hote hain jahan place hue hon — aur har naye order ki email <b id="aoNotifyEmailText">zaeemhassan649@gmail.com</b> par bhi jati hai.</p>
+    <p class="ao-note">Orders usi browser mein save hote hain jahan place hue hon — aur har naye order ki email in par bhi jati hai: <b id="aoNotifyEmailText">zaeemhassan649@gmail.com</b>.</p>
   </div>
 </div>
 
@@ -689,10 +689,16 @@ footer{background:#000;color:#c9cdd4}
         <input id="pfPhone" type="tel" placeholder="e.g. 0309 6635034" autocomplete="tel">
       </div>
       <button class="co-place" onclick="saveProfileForm()">💾 Save Profile</button>
-      <p class="pf-note">📧 Har naye order ki email isi email par jayegi. Email badalne par naye address par pehli dafa ek activation email aayegi — us ka link click karna hoga, us ke baad orders ki emails aayengi.</p>
+      <p class="pf-note">📧 Har naye order ki email sab admins ko jayegi (neeche list mein jo emails hain). Naya email add karne par us par pehli dafa ek activation email aayegi — us ka link click karna hoga, us ke baad orders ki emails aayengi.</p>
     </div>
     <div class="pf-card" style="margin-top:14px">
-      <h4 style="font-size:16px;font-weight:900;margin-bottom:6px;text-align:left">🔑 Change Admin PIN</h4>
+      <h4 style="font-size:16px;font-weight:900;margin-bottom:6px;text-align:left">👥 Admins <span id="adminsCount" style="color:var(--muted);font-size:13px"></span></h4>
+      <p style="font-size:12.5px;color:var(--muted);text-align:left;margin:0 0 10px">Zyada se zyada 4 admins — har admin apne naam se login karta hai (PIN ho to PIN bhi).</p>
+      <div id="adminsList" style="text-align:left"></div>
+      <button class="btn" id="addAdminBtn" style="width:100%;margin-top:10px;border:2px solid var(--line);color:var(--ink)" onclick="addAdmin()">＋ Add Admin</button>
+    </div>
+    <div class="pf-card" style="margin-top:14px">
+      <h4 style="font-size:16px;font-weight:900;margin-bottom:6px;text-align:left">🔑 Change PIN — <span id="pinForName"></span></h4>
       <div class="pf-field">
         <label for="newPin">New PIN (4-6 digits)</label>
         <input type="password" id="newPin" inputmode="numeric" maxlength="6" placeholder="••••">
@@ -702,6 +708,7 @@ footer{background:#000;color:#c9cdd4}
         <input type="password" id="newPin2" inputmode="numeric" maxlength="6" placeholder="Confirm new PIN">
       </div>
       <button class="btn btn-dark" style="margin-top:12px;width:100%" onclick="changePin()">Change PIN</button>
+      <button class="btn" style="margin-top:10px;width:100%;border:2px solid var(--line);color:var(--ink)" onclick="removePin()">Remove PIN — naam se direct login</button>
     </div>
     <button class="clear-cart" style="margin-top:14px" onclick="lockAdmin()">🔒 Lock Admin</button>
   </div>
@@ -719,7 +726,10 @@ footer{background:#000;color:#c9cdd4}
 /* ================= DATA — same 18 DuniaPur products, verified prices (Nov 16, 2026) ================= */
 const WA_NUMBER = "923096635034";
 const FREE_DELIVERY_AT = 3000, DELIVERY_FEE = 250;
-const DEFAULT_ADMIN_PROFILE = { name:"DuniaPur Admin", email:"zaeemhassan649@gmail.com", phone:"0309 6635034" };
+const DEFAULT_ADMINS = [
+  { id:"admin-1", name:"DuniaPur Admin", email:"zaeemhassan649@gmail.com", phone:"0309 6635034", pinHash:"0a4e3e70597a358b9447fa8a647aadf5b76dde95c8e4ab02e5f8cee6caa1cd28" }
+];
+const ADMINS_KEY = "duniapur_admins_v1";
 
 const DEFAULT_PRODUCTS = [
   {
@@ -1449,18 +1459,26 @@ function renderCart(){
 }
 /* ================= WEBSITE CHECKOUT + ORDERS DASHBOARD ================= */
 const ORDERS_KEY = "duniapur_orders_v1", ORDER_SEQ_KEY = "duniapur_order_seq";
-const PROFILE_KEY = "duniapur_admin_profile_v1";
-let ADMIN_PROFILE = loadProfile();
-function loadProfile(){
-  let p = {};
-  try{ p = JSON.parse(localStorage.getItem(PROFILE_KEY)) || {}; }catch(e){ p = {}; }
-  return { name: p.name || DEFAULT_ADMIN_PROFILE.name, email: p.email || DEFAULT_ADMIN_PROFILE.email, phone: p.phone || DEFAULT_ADMIN_PROFILE.phone };
+let ADMINS = loadAdmins();
+let CURRENT_ADMIN_ID = null;
+let editingAdminId = null;
+function loadAdmins(){
+  let list = null;
+  try{ list = JSON.parse(localStorage.getItem(ADMINS_KEY)); }catch(e){}
+  if(Array.isArray(list) && list.length){
+    return list.slice(0,4).map(a=>({ id:a.id || ("admin-"+Math.random().toString(36).slice(2,8)), name:a.name||"Admin", email:a.email||"", phone:a.phone||"", pinHash:a.pinHash||null }));
+  }
+  const a = JSON.parse(JSON.stringify(DEFAULT_ADMINS[0]));
+  const oldHash = localStorage.getItem("duniapur_admin_pin_hash");
+  if(oldHash && /^[0-9a-f]{64}$/.test(oldHash)) a.pinHash = oldHash;
+  return [a];
 }
-function saveProfile(){
-  try{ localStorage.setItem(PROFILE_KEY, JSON.stringify(ADMIN_PROFILE)); }catch(e){}
+function saveAdmins(){
+  try{ localStorage.setItem(ADMINS_KEY, JSON.stringify(ADMINS)); }catch(e){}
   markChanged();
 }
-function getNotifyEmail(){ return ADMIN_PROFILE.email || DEFAULT_ADMIN_PROFILE.email; }
+function currentAdmin(){ return ADMINS.find(a=>a.id===CURRENT_ADMIN_ID) || null; }
+function getNotifyEmails(){ return ADMINS.map(a=>a.email).filter(e=>e && e.indexOf("@") > 0); }
 let orderFilter = "All";
 function loadOrders(){ try{ return JSON.parse(localStorage.getItem(ORDERS_KEY)) || []; }catch(e){ return []; } }
 function saveOrders(o){ localStorage.setItem(ORDERS_KEY, JSON.stringify(o)); }
@@ -1501,11 +1519,13 @@ function sendOrderEmail(order){
     "Total": fmt(order.total),
     "Payment": "Cash on Delivery"
   };
-  fetch("https://formsubmit.co/ajax/" + getNotifyEmail(), {
-    method:"POST",
-    headers:{ "Content-Type":"application/json", "Accept":"application/json" },
-    body: JSON.stringify(body)
-  }).then(r=>r.json()).then(()=>{ /* order email sent */ }).catch(()=>{ /* email failed — order is still saved on the website */ });
+  getNotifyEmails().forEach(em=>{
+    fetch("https://formsubmit.co/ajax/" + em, {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", "Accept":"application/json" },
+      body: JSON.stringify(body)
+    }).then(r=>r.json()).then(()=>{ /* order email sent */ }).catch(()=>{ /* email failed — order is still saved on the website */ });
+  });
 }
 function placeOrder(){
   const name = document.getElementById("coName").value.trim();
@@ -1589,7 +1609,8 @@ function renderAllOrders(){
   document.getElementById("aStatRevenue").textContent = fmt(orders.reduce((a,o)=>a+o.total,0));
   document.querySelectorAll("#allOrdersPage .od-filter").forEach(b=>b.classList.toggle("active", b.dataset.f===allOrderFilter));
   renderNotifyNote();
-  const apn = document.getElementById("aoProfileName"); if(apn) apn.textContent = ADMIN_PROFILE.name;
+  const ca = currentAdmin();
+  const apn = document.getElementById("aoProfileName"); if(apn) apn.textContent = ca ? ca.name : "Admin";
   if(!list.length){ box.innerHTML = `<p style="color:var(--muted);font-size:14px;margin:8px 0">${orders.length ? "Is search/filter mein koi order nahi." : "Abhi tak koi order nahi aaya. Website par order aate hi yahan dikhega."}</p>`; return; }
   box.innerHTML = list.map(o=>orderCardHtml(o, orders.indexOf(o))).join("");
 }
@@ -1601,6 +1622,7 @@ function profileInitials(name){
 function openProfile(){
   if(!adminUnlocked){ pinNext = "profile"; showPinModal(); return; }
   closeAdmin();
+  editingAdminId = CURRENT_ADMIN_ID;
   renderProfile();
   document.getElementById("profilePage").classList.add("open");
 }
@@ -1608,27 +1630,75 @@ function closeProfile(){
   document.getElementById("profilePage").classList.remove("open");
 }
 function renderProfile(){
-  document.getElementById("pfAvatar").textContent = profileInitials(ADMIN_PROFILE.name);
-  document.getElementById("pfNameTitle").textContent = ADMIN_PROFILE.name;
-  document.getElementById("pfName").value = ADMIN_PROFILE.name;
-  document.getElementById("pfEmail").value = ADMIN_PROFILE.email;
-  document.getElementById("pfPhone").value = ADMIN_PROFILE.phone;
+  const a = ADMINS.find(x=>x.id===editingAdminId) || currentAdmin() || ADMINS[0];
+  editingAdminId = a.id;
+  document.getElementById("pfAvatar").textContent = profileInitials(a.name);
+  document.getElementById("pfNameTitle").textContent = a.name;
+  document.getElementById("pfName").value = a.name;
+  document.getElementById("pfEmail").value = a.email;
+  document.getElementById("pfPhone").value = a.phone;
+  document.getElementById("pinForName").textContent = a.name;
+  document.getElementById("newPin").value = "";
+  document.getElementById("newPin2").value = "";
+  renderAdminsList();
+}
+function renderAdminsList(){
+  const box = document.getElementById("adminsList"); if(!box) return;
+  document.getElementById("adminsCount").textContent = "(" + ADMINS.length + "/4)";
+  document.getElementById("addAdminBtn").style.display = ADMINS.length >= 4 ? "none" : "";
+  box.innerHTML = ADMINS.map(a=>`
+    <div class="order-card" style="margin-bottom:8px">
+      <div class="order-head"><b>${a.name}</b>${a.id===CURRENT_ADMIN_ID ? '<span class="order-status done">You</span>' : ""}<span>${a.pinHash ? "🔒 PIN" : "👤 Direct"}</span></div>
+      <div class="order-cust">${a.email}<br>${a.phone}</div>
+      <div class="order-actions">
+        <button onclick="editAdmin('${a.id}')">✏️ Edit</button>
+        ${ADMINS.length > 1 ? `<button onclick="deleteAdmin('${a.id}')">🗑 Delete</button>` : ""}
+      </div>
+    </div>`).join("");
+}
+function editAdmin(id){
+  editingAdminId = id;
+  renderProfile();
+  document.getElementById("pfName").focus();
+}
+function addAdmin(){
+  if(ADMINS.length >= 4){ showToast("⚠️ Zyada se zyada 4 admins ho sakte hain"); return; }
+  const a = { id:"admin-" + Date.now().toString(36), name:"", email:"", phone:"", pinHash:null };
+  ADMINS.push(a);
+  saveAdmins();
+  editingAdminId = a.id;
+  renderProfile();
+  renderNotifyNote();
+  document.getElementById("pfName").focus();
+  showToast("👤 Naya admin — naam, email aur phone likhein, phir Save dabayein");
+}
+function deleteAdmin(id){
+  if(ADMINS.length <= 1){ showToast("⚠️ Kam se kam aik admin hona chahiye"); return; }
+  if(id === CURRENT_ADMIN_ID){ showToast("⚠️ Aap khud ko delete nahi kar sakte"); return; }
+  if(!confirm("Is admin ko delete karein?")) return;
+  ADMINS = ADMINS.filter(x=>x.id!==id);
+  saveAdmins();
+  if(editingAdminId === id) editingAdminId = CURRENT_ADMIN_ID;
+  renderProfile();
+  renderNotifyNote();
+  showToast("🗑️ Admin deleted");
 }
 function saveProfileForm(){
+  const a = ADMINS.find(x=>x.id===editingAdminId); if(!a) return;
   const name = document.getElementById("pfName").value.trim();
   const email = document.getElementById("pfEmail").value.trim();
   const phone = document.getElementById("pfPhone").value.trim();
   if(name.length < 2){ showToast("⚠️ Please apna naam likhein"); return; }
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ showToast("⚠️ Please sahi email likhein"); return; }
   if(phone.replace(/\D/g, "").length < 10){ showToast("⚠️ Please sahi phone number likhein"); return; }
-  ADMIN_PROFILE = { name, email, phone };
-  saveProfile();
+  a.name = name; a.email = email; a.phone = phone;
+  saveAdmins();
   renderProfile();
   renderNotifyNote();
   showToast("✅ Profile save ho gaya");
 }
 function renderNotifyNote(){
-  const em = getNotifyEmail();
+  const em = getNotifyEmails().join(", ");
   const a = document.getElementById("notifyEmailText"); if(a) a.textContent = em;
   const b = document.getElementById("aoNotifyEmailText"); if(b) b.textContent = em;
 }
@@ -1729,7 +1799,7 @@ renderCart();
     <div id="dlReminder" style="display:none;background:#fff8e1;border:1.5px solid #f0c040;border-radius:10px;padding:12px;font-size:13.5px;margin-bottom:14px;color:var(--ink)">✅ Changes save ho gayi hain — ab <b>Download Updated Website</b> dabayein taake nayi file mein save hon.</div>
     <div id="ordersDash" style="margin-bottom:18px;border:1.5px solid var(--line);border-radius:12px;padding:14px">
       <h4 style="font-size:16px;font-weight:900;margin-bottom:10px;color:var(--ink)">📦 Orders Dashboard</h4>
-      <p style="font-size:12px;color:var(--muted);margin:-4px 0 10px">📧 Har naye order ki email <b id="notifyEmailText">zaeemhassan649@gmail.com</b> par jayegi.</p>
+      <p style="font-size:12px;color:var(--muted);margin:-4px 0 10px">📧 Order emails: <b id="notifyEmailText">zaeemhassan649@gmail.com</b></p>
       <button class="btn btn-dark" style="width:100%;margin-bottom:12px" onclick="openAllOrders()">📋 View All Orders</button>
       <button class="btn" style="width:100%;margin-bottom:12px;border:2px solid var(--line);color:var(--ink)" onclick="openProfile()">👤 Admin Profile</button>
       <div class="od-stats">
@@ -1798,15 +1868,31 @@ renderCart();
 </style>
 
 <!-- ============ ADMIN PIN PROMPT ============ -->
+<style>
+.admin-pick{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:1.5px solid var(--line);border-radius:12px;padding:12px;margin-bottom:8px;background:#fff;color:var(--ink)}
+.admin-pick:hover{border-color:var(--gold)}
+.admin-pick-av{width:44px;height:44px;border-radius:50%;background:var(--green);color:#fff;font-weight:900;font-size:17px;display:grid;place-items:center;flex-shrink:0}
+.admin-pick b{display:block;font-size:15px}
+.admin-pick small{color:var(--muted);font-size:12px}
+</style>
 <div class="overlay" id="pinOverlay" onclick="closePin()"></div>
 <div class="pin-modal" id="pinModal">
   <h3>🔒 Admin Access</h3>
-  <p>Sirf owner ke liye hai. Apna PIN daalein.</p>
-  <input type="password" id="pinInput" inputmode="numeric" maxlength="6" placeholder="••••" autocomplete="off" onkeydown="if(event.key==='Enter')checkPin()">
-  <p id="pinError" style="display:none;color:var(--red);font-weight:700;font-size:13px;margin-top:10px">❌ Galat PIN — dobara try karein</p>
-  <div class="form-actions">
-    <button class="btn btn-dark" onclick="checkPin()">Unlock</button>
-    <button class="btn" style="border:2px solid var(--line);color:var(--ink)" onclick="closePin()">Cancel</button>
+  <div id="adminPickStep">
+    <p>Apna naam choose karein:</p>
+    <div id="adminPickList"></div>
+    <div class="form-actions">
+      <button class="btn" style="border:2px solid var(--line);color:var(--ink)" onclick="closePin()">Cancel</button>
+    </div>
+  </div>
+  <div id="pinStep" style="display:none">
+    <p>👤 <b id="pinAdminName"></b> — apna PIN daalein.</p>
+    <input type="password" id="pinInput" inputmode="numeric" maxlength="6" placeholder="••••" autocomplete="off" onkeydown="if(event.key==='Enter')checkPin()">
+    <p id="pinError" style="display:none;color:var(--red);font-weight:700;font-size:13px;margin-top:10px">❌ Galat PIN — dobara try karein</p>
+    <div class="form-actions">
+      <button class="btn btn-dark" onclick="checkPin()">Unlock</button>
+      <button class="btn" style="border:2px solid var(--line);color:var(--ink)" onclick="backToAdminPick()">← Change</button>
+    </div>
   </div>
   <button onclick="requestPinWhatsApp()" style="width:100%;margin-top:12px;background:#25d366;color:#fff;font-weight:800;font-size:15px;padding:13px;border-radius:8px">📲 WhatsApp par PIN mangwayein</button>
   <p style="font-size:12.5px;color:var(--muted);margin-top:10px;margin-bottom:0">PIN sirf owner ke paas hai — request WhatsApp par jayegi, woh PIN bhej dein ge.</p>
@@ -1863,12 +1949,6 @@ function sha256(ascii){
   }
   return result;
 }
-let ADMIN_PIN_HASH = "0a4e3e70597a358b9447fa8a647aadf5b76dde95c8e4ab02e5f8cee6caa1cd28";
-try{
-  const sh = localStorage.getItem("duniapur_admin_pin_hash");
-  if(sh){ ADMIN_PIN_HASH = sh; }
-  else{ const sp = localStorage.getItem("duniapur_admin_pin"); if(sp){ ADMIN_PIN_HASH = sha256(sp); localStorage.setItem("duniapur_admin_pin_hash", ADMIN_PIN_HASH); localStorage.removeItem("duniapur_admin_pin"); } }
-}catch(e){}
 let adminUnlocked = false;
 let logoTaps = 0, logoTapTimer = null;
 function logoTap(e){
@@ -1884,12 +1964,49 @@ function catLabel(c){ return {dry:"Dry Fruits", sweet:"Multani Sweets", honey:"P
 function catEmoji(c){ return {dry:"🥜", sweet:"🍬", honey:"🍯", seed:"🌻"}[c] || "🥜"; }
 
 let pinNext = "admin";
+let pickedAdminId = null;
 function showPinModal(){
+  pickedAdminId = null;
   document.getElementById("pinInput").value = "";
   document.getElementById("pinError").style.display = "none";
+  renderAdminPickList();
+  document.getElementById("adminPickStep").style.display = "";
+  document.getElementById("pinStep").style.display = "none";
   document.getElementById("pinOverlay").classList.add("open");
   document.getElementById("pinModal").classList.add("open");
-  setTimeout(function(){ document.getElementById("pinInput").focus(); }, 300);
+}
+function renderAdminPickList(){
+  document.getElementById("adminPickList").innerHTML = ADMINS.map(a=>
+    `<button class="admin-pick" onclick="pickAdmin('${a.id}')">
+      <span class="admin-pick-av">${profileInitials(a.name)}</span>
+      <span><b>${a.name}</b><small>${a.pinHash ? "🔒 PIN required" : "👤 Direct login — no PIN"}</small></span>
+    </button>`).join("");
+}
+function pickAdmin(id){
+  const a = ADMINS.find(x=>x.id===id); if(!a) return;
+  pickedAdminId = id;
+  if(!a.pinHash){ doLogin(a); return; }
+  document.getElementById("pinAdminName").textContent = a.name;
+  document.getElementById("adminPickStep").style.display = "none";
+  document.getElementById("pinStep").style.display = "";
+  document.getElementById("pinInput").value = "";
+  document.getElementById("pinError").style.display = "none";
+  setTimeout(function(){ document.getElementById("pinInput").focus(); }, 200);
+}
+function backToAdminPick(){
+  pickedAdminId = null;
+  document.getElementById("pinStep").style.display = "none";
+  document.getElementById("adminPickStep").style.display = "";
+  renderAdminPickList();
+}
+function doLogin(a){
+  CURRENT_ADMIN_ID = a.id;
+  adminUnlocked = true;
+  closePin();
+  if(pinNext === "orders"){ openAllOrders(); }
+  else if(pinNext === "profile"){ openProfile(); }
+  else { openAdminDrawer(); }
+  showToast("✅ Welcome, " + a.name);
 }
 function openAdmin(){
   pinNext = "admin";
@@ -1908,14 +2025,9 @@ function closePin(){
   document.getElementById("pinModal").classList.remove("open");
 }
 function checkPin(){
-  if(sha256(document.getElementById("pinInput").value) === ADMIN_PIN_HASH){
-    adminUnlocked = true;
-    closePin();
-    if(pinNext === "orders"){ openAllOrders(); }
-    else if(pinNext === "profile"){ openProfile(); }
-    else { openAdminDrawer(); }
-    showToast("✅ Admin unlocked");
-  }else{
+  const a = ADMINS.find(x=>x.id===pickedAdminId); if(!a){ backToAdminPick(); return; }
+  if(sha256(document.getElementById("pinInput").value) === a.pinHash){ doLogin(a); }
+  else {
     document.getElementById("pinError").style.display = "block";
     const m = document.getElementById("pinModal");
     m.classList.remove("shake"); void m.offsetWidth; m.classList.add("shake");
@@ -1929,21 +2041,31 @@ function requestPinWhatsApp(){
 }
 function lockAdmin(){
   adminUnlocked = false;
+  CURRENT_ADMIN_ID = null;
   closeAdmin();
   closeAllOrders();
   closeProfile();
   showToast("🔒 Admin locked");
 }
 function changePin(){
-  const a = document.getElementById("newPin").value.trim();
+  const a = ADMINS.find(x=>x.id===editingAdminId); if(!a) return;
+  const n = document.getElementById("newPin").value.trim();
   const b = document.getElementById("newPin2").value.trim();
-  if(!/^\d{4,6}$/.test(a)){ showToast("⚠️ PIN 4-6 digits ka hona chahiye"); return; }
-  if(a !== b){ showToast("⚠️ Dono PIN match nahi kar rahe"); return; }
-  ADMIN_PIN_HASH = sha256(a);
-  try{ localStorage.setItem("duniapur_admin_pin_hash", ADMIN_PIN_HASH); localStorage.removeItem("duniapur_admin_pin"); }catch(e){}
+  if(!/^\d{4,6}$/.test(n)){ showToast("⚠️ PIN 4-6 digits ka hona chahiye"); return; }
+  if(n !== b){ showToast("⚠️ Dono PIN match nahi kar rahe"); return; }
+  a.pinHash = sha256(n);
+  saveAdmins();
   document.getElementById("newPin").value = "";
   document.getElementById("newPin2").value = "";
+  renderAdminsList();
   showToast("✅ PIN change ho gaya");
+}
+function removePin(){
+  const a = ADMINS.find(x=>x.id===editingAdminId); if(!a) return;
+  a.pinHash = null;
+  saveAdmins();
+  renderAdminsList();
+  showToast("✅ PIN hat gaya — ab " + a.name + " naam se direct login karega");
 }
 function closeAdmin(){
   document.getElementById("adminDrawer").classList.remove("open");
@@ -2107,13 +2229,11 @@ function resetProducts(){
 function downloadUpdatedSite(){
   closeAdmin(); closeCart(); closeAll();
   const fresh = "const DEFAULT_PRODUCTS = " + JSON.stringify(PRODUCTS, null, 2) + ";";
-  let okP = false, okPin = false, okProf = false;
+  let okP = false, okA = false;
   let out = TEMPLATE_HTML.replace(/const DEFAULT_PRODUCTS = \[[\s\S]*?\n\];/, function(){ okP = true; return fresh; });
-  const pinFresh = 'let ADMIN_PIN_HASH = "' + ADMIN_PIN_HASH + '";';
-  out = out.replace(/let ADMIN_PIN_HASH = "[^"]*";/, function(){ okPin = true; return pinFresh; });
-  const profFresh = "const DEFAULT_ADMIN_PROFILE = " + JSON.stringify(ADMIN_PROFILE) + ";";
-  out = out.replace(/const DEFAULT_ADMIN_PROFILE = \{[^}]*\};/, function(){ okProf = true; return profFresh; });
-  if(!okP || !okPin || !okProf){ showToast("⚠️ Download tayyar nahi ho saka — dobara try karein"); return; }
+  const adminsFresh = "const DEFAULT_ADMINS = " + JSON.stringify(ADMINS, null, 2) + ";";
+  out = out.replace(/const DEFAULT_ADMINS = \[[\s\S]*?\n\];/, function(){ okA = true; return adminsFresh; });
+  if(!okP || !okA){ showToast("⚠️ Download tayyar nahi ho saka — dobara try karein"); return; }
   const blob = new Blob([out], {type:"text/html"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
